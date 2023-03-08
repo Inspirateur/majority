@@ -1,5 +1,6 @@
-mod majority;
-pub use majority::Polls;
+mod db;
+mod majority_judgment;
+pub use db::Polls;
 
 #[cfg(test)]
 mod tests {
