@@ -1,25 +1,18 @@
+use crate::{
+    majority_judgment::{compute_ranking, fill_out_votes},
+    Poll,
+};
 use anyhow::{anyhow, Result};
 use rusqlite::Connection;
-use std::collections::HashMap;
+use std::path::Path;
 
-use crate::majority_judgment::compute_ranking;
-
-pub struct Poll {
-    desc: String,
-    author: String,
-    options: Vec<String>,
-    votes: Vec<HashMap<usize, usize>>,
-    ranking: Vec<usize>,
-    is_open: bool,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Polls {
-    db_path: String,
+    conn: Connection,
 }
 
 impl Polls {
-    pub fn new(db_path: &str) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(db_path: P) -> Result<Self> {
         let conn = Connection::open(db_path)?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS Poll (
@@ -40,7 +33,7 @@ impl Polls {
             [],
         )?;
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS Votes (
+            "CREATE TABLE IF NOT EXISTS Vote (
 				user TEXT,
 				poll TEXT,
 				number INTEGER,
@@ -55,50 +48,51 @@ impl Polls {
             WHERE is_open = 0",
             [],
         )?;
-        Ok(Polls {
-            db_path: db_path.to_string(),
-        })
+        Ok(Polls { conn })
     }
 
-    pub fn add_poll(
-        &self,
-        poll_uuid: String,
-        author_uuid: String,
-        desc: String,
-        options: Vec<String>,
+    pub fn add_poll<S: Into<String>>(
+        &mut self,
+        poll_uuid: S,
+        author_uuid: S,
+        desc: S,
+        options: Vec<S>,
     ) -> Result<()> {
-        let mut conn = Connection::open(&self.db_path)?;
-        let tx = conn.transaction()?;
+        let poll_uuid = poll_uuid.into();
+        let author_uuid = author_uuid.into();
+        let desc = desc.into();
+        let tx = self.conn.transaction()?;
         tx.execute(
             "INSERT 
             INTO Poll (uuid, author, desc) 
             VALUES (?1, ?2, ?3)",
             [poll_uuid.clone(), author_uuid, desc],
         )?;
-        for (i, desc) in options.into_iter().enumerate() {
+        for (i, opt_desc) in options.into_iter().enumerate() {
             tx.execute(
                 "INSERT 
                 INTO Option (poll, number, desc) 
-                VALUES (?1, ?2, ?3, ?4)",
-                [poll_uuid.clone(), i.to_string(), desc],
+                VALUES (?1, ?2, ?3)",
+                [poll_uuid.clone(), i.to_string(), opt_desc.into()],
             )?;
         }
         Ok(tx.commit()?)
     }
 
-    pub fn vote(
+    pub fn vote<S: Into<String>>(
         &self,
-        poll_uuid: String,
+        poll_uuid: S,
         option_number: usize,
-        user_uuid: String,
+        user_uuid: S,
         value: usize,
     ) -> Result<Poll> {
-        let conn = Connection::open(&self.db_path)?;
+        let poll_uuid = poll_uuid.into();
+        let user_uuid = user_uuid.into();
         // check if the poll is open
-        if !Polls::_is_poll_open(&conn, poll_uuid.clone())? {
+        if !self.is_poll_open(poll_uuid.clone())? {
             return Err(anyhow!("Poll is closed"));
         }
-        conn.execute(
+        self.conn.execute(
             "INSERT OR REPLACE 
             INTO Vote (user, poll, number, vote) 
             VALUES (?1, ?2, ?3, ?4)",
@@ -112,9 +106,10 @@ impl Polls {
         self.get_poll(poll_uuid)
     }
 
-    pub fn get_poll(&self, poll_uuid: String) -> Result<Poll> {
-        let conn = Connection::open(&self.db_path)?;
-        let (author, desc, is_open) = conn
+    pub fn get_poll<S: Into<String>>(&self, poll_uuid: S) -> Result<Poll> {
+        let poll_uuid = poll_uuid.into();
+        let (author, desc, is_open) = self
+            .conn
             .prepare("SELECT author, desc, is_open FROM Poll WHERE uuid = ?1")
             .unwrap()
             .query_row([poll_uuid.clone()], |row| {
@@ -124,53 +119,51 @@ impl Polls {
                     row.get::<usize, bool>(2)?,
                 ))
             })?;
-        let mut stmt = conn
+        let mut stmt = self
+            .conn
             .prepare("SELECT desc FROM Option WHERE poll = ?1 ORDER BY number ASC")
             .unwrap();
         let options = stmt
             .query_map([poll_uuid.clone()], |row| row.get::<usize, String>(0))?
             .collect::<Result<Vec<String>, rusqlite::Error>>()?;
-        let mut stmt = conn
-            .prepare("SELECT number vote FROM Vote WHERE poll = ?1")
+        let mut stmt = self
+            .conn
+            .prepare("SELECT number, vote FROM Vote WHERE poll = ?1")
             .unwrap();
         let _votes = stmt
             .query_map([poll_uuid], |row| {
                 Ok((row.get::<usize, usize>(0)?, row.get::<usize, usize>(1)?))
             })?
             .collect::<Result<Vec<(usize, usize)>, rusqlite::Error>>()?;
-        let mut votes: Vec<HashMap<usize, usize>> =
-            (0..options.len()).map(|_i| HashMap::new()).collect();
+        let mut options_votes: Vec<Vec<usize>> = (0..options.len()).map(|_i| Vec::new()).collect();
         for (number, vote) in _votes {
-            votes[number]
-                .entry(vote)
-                .and_modify(|counter| *counter += 1)
-                .or_insert(1);
+            options_votes[number].push(vote);
         }
+        for votes in options_votes.iter_mut() {
+            votes.sort()
+        }
+        fill_out_votes(&mut options_votes);
         Ok(Poll {
             desc,
             author,
             is_open,
             options,
-            ranking: compute_ranking(&votes),
-            votes,
+            ranking: compute_ranking(&options_votes),
+            votes: options_votes,
         })
     }
 
-    fn _is_poll_open(conn: &Connection, poll_uuid: String) -> Result<bool> {
-        Ok(conn
+    pub fn is_poll_open<S: Into<String>>(&self, poll_uuid: S) -> Result<bool> {
+        Ok(self
+            .conn
             .prepare("SELECT is_open FROM Poll WHERE uuid = ?1")
             .unwrap()
-            .query_row([poll_uuid], |row| row.get::<usize, bool>(0))?)
+            .query_row([poll_uuid.into()], |row| row.get::<usize, bool>(0))?)
     }
 
-    pub fn is_poll_open(&self, poll_uuid: String) -> Result<bool> {
-        let conn = Connection::open(&self.db_path)?;
-        Polls::_is_poll_open(&conn, poll_uuid)
-    }
-
-    pub fn close_poll(&self, poll_uuid: String) -> Result<Poll> {
-        let conn = Connection::open(&self.db_path)?;
-        conn.execute(
+    pub fn close_poll<S: Into<String>>(&self, poll_uuid: S) -> Result<Poll> {
+        let poll_uuid = poll_uuid.into();
+        self.conn.execute(
             "UPDATE Poll
             SET is_open = 0
             WHERE uuid = ?1",
