@@ -52,47 +52,48 @@ impl Polls {
     }
 
     pub fn add_poll<S: Into<String>>(
-        &mut self,
+        &self,
         poll_uuid: S,
         author_uuid: S,
         desc: S,
         options: Vec<S>,
-    ) -> Result<()> {
+    ) -> Result<Poll> {
         let poll_uuid = poll_uuid.into();
         let author_uuid = author_uuid.into();
         let desc = desc.into();
-        let tx = self.conn.transaction()?;
-        tx.execute(
+        self.conn.execute(
             "INSERT 
             INTO Poll (uuid, author, desc) 
             VALUES (?1, ?2, ?3)",
             [poll_uuid.clone(), author_uuid, desc],
         )?;
         for (i, opt_desc) in options.into_iter().enumerate() {
-            tx.execute(
+            self.conn.execute(
                 "INSERT 
                 INTO Option (poll, number, desc) 
                 VALUES (?1, ?2, ?3)",
                 [poll_uuid.clone(), i.to_string(), opt_desc.into()],
             )?;
         }
-        Ok(tx.commit()?)
+        self.get_poll(poll_uuid)
     }
 
-    pub fn add_option<S: Into<String>>(&self, poll_uuid: S, option: S) -> Result<()> {
+    pub fn add_options<S: Into<String>>(&self, poll_uuid: S, options: Vec<S>) -> Result<Poll> {
         let poll_uuid = poll_uuid.into();
         let count = self
             .conn
             .prepare("SELECT COUNT(*) FROM Option WHERE poll = ?1")
             .unwrap()
             .query_row([poll_uuid.clone()], |row| row.get::<usize, usize>(0))?;
-        self.conn.execute(
-            "INSERT
-            INTO Option (poll, number, desc)
-            VALUES (?1, ?2, ?3)",
-            [poll_uuid, count.to_string(), option.into()],
-        )?;
-        Ok(())
+        for (i, option) in options.into_iter().enumerate() {
+            self.conn.execute(
+                "INSERT
+                INTO Option (poll, number, desc)
+                VALUES (?1, ?2, ?3)",
+                [poll_uuid.clone(), (count + i).to_string(), option.into()],
+            )?;
+        }
+        self.get_poll(poll_uuid)
     }
 
     pub fn vote<S: Into<String>>(

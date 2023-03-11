@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut polls = Polls::new("polls.db").unwrap();
+        let polls = Polls::new("polls.db").unwrap();
         // Create a poll with 3 options
         polls
             .add_poll(
@@ -33,7 +33,7 @@ mod tests {
             )
             .unwrap();
         // Add a fourth one
-        polls.add_option("1", "Mec Don Hald").unwrap();
+        polls.add_options("1", vec!["Mec Don Hald"]).unwrap();
         // Vote values between 1-5 for this test
         let user_votes = vec![
             //   0  1  2  3  options

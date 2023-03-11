@@ -1,6 +1,6 @@
 # majority
 Rust crate to manage Majority Judgment polls  
-https://en.wikipedia.org/wiki/Majority_judgment
+https://electowiki.org/wiki/Majority_Judgment
 
 ```rust
 use majority::{Polls, Poll};
