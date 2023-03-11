@@ -23,14 +23,17 @@ mod tests {
     #[test]
     fn it_works() {
         let mut polls = Polls::new("polls.db").unwrap();
+        // Create a poll with 3 options
         polls
             .add_poll(
                 "1",
                 "1",
                 "Where shall we eat tomorrow ?",
-                vec!["Mama's Pizza", "Mega Sushi", "The Borgir", "Mec Don Hald"],
+                vec!["Mama's Pizza", "Mega Sushi", "The Borgir"],
             )
             .unwrap();
+        // Add a fourth one
+        polls.add_option("1", "Mec Don Hald").unwrap();
         // Vote values between 1-5 for this test
         let user_votes = vec![
             //   0  1  2  3  options

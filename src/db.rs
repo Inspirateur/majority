@@ -79,6 +79,22 @@ impl Polls {
         Ok(tx.commit()?)
     }
 
+    pub fn add_option<S: Into<String>>(&self, poll_uuid: S, option: S) -> Result<()> {
+        let poll_uuid = poll_uuid.into();
+        let count = self
+            .conn
+            .prepare("SELECT COUNT(*) FROM Option WHERE poll = ?1")
+            .unwrap()
+            .query_row([poll_uuid.clone()], |row| row.get::<usize, usize>(0))?;
+        self.conn.execute(
+            "INSERT
+            INTO Option (poll, number, desc)
+            VALUES (?1, ?2, ?3)",
+            [poll_uuid, count.to_string(), option.into()],
+        )?;
+        Ok(())
+    }
+
     pub fn vote<S: Into<String>>(
         &self,
         poll_uuid: S,
