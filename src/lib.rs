@@ -9,6 +9,8 @@ pub use poll::Poll;
 mod tests {
     use crate::{Poll, *};
     use anyhow::{Ok, Result};
+    
+    fn is_sync<T: Sync>() { }
 
     fn votes_on(polls: &Polls, poll_uuid: &str, user_votes: Vec<Vec<usize>>) -> Result<Poll> {
         for (user, votes) in user_votes.into_iter().enumerate() {
@@ -22,6 +24,8 @@ mod tests {
 
     #[test]
     fn it_works() {
+        // To ensure that Polls is Sync
+        is_sync::<Polls>();
         let polls = Polls::new("polls.db").unwrap();
         // Create a poll with 3 options
         polls

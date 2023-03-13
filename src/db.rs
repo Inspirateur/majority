@@ -4,16 +4,16 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use rusqlite::Connection;
-use std::{path::Path, sync::{Mutex, Arc, MutexGuard}};
+use std::{path::{Path, PathBuf}};
 
-#[derive(Debug)]
 pub struct Polls {
-    conn: Arc<Mutex<Connection>>,
+    path: PathBuf,
 }
 
 impl Polls {
     pub fn new<P: AsRef<Path>>(db_path: P) -> Result<Self> {
-        let conn = Connection::open(db_path)?;
+        let path = db_path.as_ref().to_path_buf();
+        let conn = Connection::open(&path)?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS Poll (
                 uuid TEXT PRIMARY KEY,
@@ -48,13 +48,7 @@ impl Polls {
             WHERE is_open = 0",
             [],
         )?;
-        Ok(Polls { conn: Arc::new(Mutex::new(conn)) })
-    }
-
-    fn connection(&self) -> Result<MutexGuard<Connection>> {
-        self.conn.lock().map_err(
-            |_e| anyhow!("Couldn't get the connexion")
-        )
+        Ok(Polls { path })
     }
 
     pub fn add_poll<S: Into<String>>(
@@ -64,7 +58,7 @@ impl Polls {
         desc: S,
         options: Vec<S>,
     ) -> Result<Poll> {
-        let conn = self.connection()?;
+        let conn = Connection::open(&self.path)?;
         let poll_uuid = poll_uuid.into();
         let author_uuid = author_uuid.into();
         let desc = desc.into();
@@ -82,11 +76,11 @@ impl Polls {
                 [poll_uuid.clone(), i.to_string(), opt_desc.into()],
             )?;
         }
-        self.get_poll(poll_uuid)
+        Polls::_get_poll(&conn, poll_uuid)
     }
 
     pub fn add_options<S: Into<String>>(&self, poll_uuid: S, options: Vec<S>) -> Result<Poll> {
-        let conn = self.connection()?;
+        let conn = Connection::open(&self.path)?;
         let poll_uuid = poll_uuid.into();
         let count = conn
             .prepare("SELECT COUNT(*) FROM Option WHERE poll = ?1")
@@ -100,7 +94,7 @@ impl Polls {
                 [poll_uuid.clone(), (count + i).to_string(), option.into()],
             )?;
         }
-        self.get_poll(poll_uuid)
+        Polls::_get_poll(&conn, poll_uuid)
     }
 
     pub fn vote<S: Into<String>>(
@@ -110,7 +104,7 @@ impl Polls {
         user_uuid: S,
         value: usize,
     ) -> Result<Poll> {
-        let conn = self.connection()?;
+        let conn = Connection::open(&self.path)?;
         let poll_uuid = poll_uuid.into();
         let user_uuid = user_uuid.into();
         // check if the poll is open
@@ -128,11 +122,10 @@ impl Polls {
                 value.to_string(),
             ],
         )?;
-        self.get_poll(poll_uuid)
+        Polls::_get_poll(&conn, poll_uuid)
     }
 
-    pub fn get_poll<S: Into<String>>(&self, poll_uuid: S) -> Result<Poll> {
-        let conn = self.connection()?;
+    fn _get_poll<S: Into<String>>(conn: &Connection, poll_uuid: S) -> Result<Poll> {
         let poll_uuid = poll_uuid.into();
         let (author, desc, is_open) = conn
             .prepare("SELECT author, desc, is_open FROM Poll WHERE uuid = ?1")
@@ -176,8 +169,13 @@ impl Polls {
         })
     }
 
+    pub fn get_poll<S: Into<String>>(&self, poll_uuid: S) -> Result<Poll> {
+        let conn = Connection::open(&self.path)?;
+        Polls::_get_poll(&conn, poll_uuid)
+    }
+
     pub fn is_poll_open<S: Into<String>>(&self, poll_uuid: S) -> Result<bool> {
-        let conn = self.connection()?;
+        let conn = Connection::open(&self.path)?;
         let res = conn
             .prepare("SELECT is_open FROM Poll WHERE uuid = ?1")
             .unwrap()
@@ -186,7 +184,7 @@ impl Polls {
     }
 
     pub fn close_poll<S: Into<String>>(&self, poll_uuid: S) -> Result<Poll> {
-        let conn = self.connection()?;
+        let conn = Connection::open(&self.path)?;
         let poll_uuid = poll_uuid.into();
         conn.execute(
             "UPDATE Poll
@@ -194,6 +192,6 @@ impl Polls {
             WHERE uuid = ?1",
             [poll_uuid.clone()],
         )?;
-        self.get_poll(poll_uuid)
+        Polls::_get_poll(&conn, poll_uuid)
     }
 }
