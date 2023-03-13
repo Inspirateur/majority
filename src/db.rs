@@ -4,11 +4,11 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use rusqlite::Connection;
-use std::path::Path;
+use std::{path::Path, sync::{Mutex, Arc, MutexGuard}};
 
 #[derive(Debug)]
 pub struct Polls {
-    conn: Connection,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl Polls {
@@ -48,7 +48,13 @@ impl Polls {
             WHERE is_open = 0",
             [],
         )?;
-        Ok(Polls { conn })
+        Ok(Polls { conn: Arc::new(Mutex::new(conn)) })
+    }
+
+    fn connection(&self) -> Result<MutexGuard<Connection>> {
+        self.conn.lock().map_err(
+            |_e| anyhow!("Couldn't get the connexion")
+        )
     }
 
     pub fn add_poll<S: Into<String>>(
@@ -58,17 +64,18 @@ impl Polls {
         desc: S,
         options: Vec<S>,
     ) -> Result<Poll> {
+        let conn = self.connection()?;
         let poll_uuid = poll_uuid.into();
         let author_uuid = author_uuid.into();
         let desc = desc.into();
-        self.conn.execute(
+        conn.execute(
             "INSERT 
             INTO Poll (uuid, author, desc) 
             VALUES (?1, ?2, ?3)",
             [poll_uuid.clone(), author_uuid, desc],
         )?;
         for (i, opt_desc) in options.into_iter().enumerate() {
-            self.conn.execute(
+            conn.execute(
                 "INSERT 
                 INTO Option (poll, number, desc) 
                 VALUES (?1, ?2, ?3)",
@@ -79,14 +86,14 @@ impl Polls {
     }
 
     pub fn add_options<S: Into<String>>(&self, poll_uuid: S, options: Vec<S>) -> Result<Poll> {
+        let conn = self.connection()?;
         let poll_uuid = poll_uuid.into();
-        let count = self
-            .conn
+        let count = conn
             .prepare("SELECT COUNT(*) FROM Option WHERE poll = ?1")
             .unwrap()
             .query_row([poll_uuid.clone()], |row| row.get::<usize, usize>(0))?;
         for (i, option) in options.into_iter().enumerate() {
-            self.conn.execute(
+            conn.execute(
                 "INSERT
                 INTO Option (poll, number, desc)
                 VALUES (?1, ?2, ?3)",
@@ -103,13 +110,14 @@ impl Polls {
         user_uuid: S,
         value: usize,
     ) -> Result<Poll> {
+        let conn = self.connection()?;
         let poll_uuid = poll_uuid.into();
         let user_uuid = user_uuid.into();
         // check if the poll is open
         if !self.is_poll_open(poll_uuid.clone())? {
             return Err(anyhow!("Poll is closed"));
         }
-        self.conn.execute(
+        conn.execute(
             "INSERT OR REPLACE 
             INTO Vote (user, poll, number, vote) 
             VALUES (?1, ?2, ?3, ?4)",
@@ -124,9 +132,9 @@ impl Polls {
     }
 
     pub fn get_poll<S: Into<String>>(&self, poll_uuid: S) -> Result<Poll> {
+        let conn = self.connection()?;
         let poll_uuid = poll_uuid.into();
-        let (author, desc, is_open) = self
-            .conn
+        let (author, desc, is_open) = conn
             .prepare("SELECT author, desc, is_open FROM Poll WHERE uuid = ?1")
             .unwrap()
             .query_row([poll_uuid.clone()], |row| {
@@ -136,15 +144,13 @@ impl Polls {
                     row.get::<usize, bool>(2)?,
                 ))
             })?;
-        let mut stmt = self
-            .conn
+        let mut stmt = conn
             .prepare("SELECT desc FROM Option WHERE poll = ?1 ORDER BY number ASC")
             .unwrap();
         let options = stmt
             .query_map([poll_uuid.clone()], |row| row.get::<usize, String>(0))?
             .collect::<Result<Vec<String>, rusqlite::Error>>()?;
-        let mut stmt = self
-            .conn
+        let mut stmt = conn
             .prepare("SELECT number, vote FROM Vote WHERE poll = ?1")
             .unwrap();
         let _votes = stmt
@@ -171,16 +177,18 @@ impl Polls {
     }
 
     pub fn is_poll_open<S: Into<String>>(&self, poll_uuid: S) -> Result<bool> {
-        Ok(self
-            .conn
+        let conn = self.connection()?;
+        let res = conn
             .prepare("SELECT is_open FROM Poll WHERE uuid = ?1")
             .unwrap()
-            .query_row([poll_uuid.into()], |row| row.get::<usize, bool>(0))?)
+            .query_row([poll_uuid.into()], |row| row.get::<usize, bool>(0))?;
+        Ok(res)
     }
 
     pub fn close_poll<S: Into<String>>(&self, poll_uuid: S) -> Result<Poll> {
+        let conn = self.connection()?;
         let poll_uuid = poll_uuid.into();
-        self.conn.execute(
+        conn.execute(
             "UPDATE Poll
             SET is_open = 0
             WHERE uuid = ?1",
