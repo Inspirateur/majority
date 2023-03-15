@@ -58,11 +58,11 @@ impl Polls {
         desc: S3,
         options: Vec<S4>,
     ) -> Result<Poll> 
-    where S1: Into<String>, S2: Into<String>, S3: Into<String>, S4: Into<String> {
+    where S1: ToString, S2: ToString, S3: ToString, S4: ToString {
         let conn = Connection::open(&self.path)?;
-        let poll_uuid = poll_uuid.into();
-        let author_uuid = author_uuid.into();
-        let desc = desc.into();
+        let poll_uuid = poll_uuid.to_string();
+        let author_uuid = author_uuid.to_string();
+        let desc = desc.to_string();
         conn.execute(
             "INSERT 
             INTO Poll (uuid, author, desc) 
@@ -74,16 +74,16 @@ impl Polls {
                 "INSERT 
                 INTO Option (poll, number, desc) 
                 VALUES (?1, ?2, ?3)",
-                [poll_uuid.clone(), i.to_string(), opt_desc.into()],
+                [poll_uuid.clone(), i.to_string(), opt_desc.to_string()],
             )?;
         }
         Polls::_get_poll(&conn, poll_uuid)
     }
 
     pub fn add_options<S1, S2>(&self, poll_uuid: S1, options: Vec<S2>) -> Result<Poll>
-    where S1: Into<String>, S2: Into<String> {
+    where S1: ToString, S2: ToString {
         let conn = Connection::open(&self.path)?;
-        let poll_uuid = poll_uuid.into();
+        let poll_uuid = poll_uuid.to_string();
         let count = conn
             .prepare("SELECT COUNT(*) FROM Option WHERE poll = ?1")
             .unwrap()
@@ -93,7 +93,7 @@ impl Polls {
                 "INSERT
                 INTO Option (poll, number, desc)
                 VALUES (?1, ?2, ?3)",
-                [poll_uuid.clone(), (count + i).to_string(), option.into()],
+                [poll_uuid.clone(), (count + i).to_string(), option.to_string()],
             )?;
         }
         Polls::_get_poll(&conn, poll_uuid)
@@ -106,10 +106,10 @@ impl Polls {
         user_uuid: S2,
         value: usize,
     ) -> Result<Poll> 
-    where S1: Into<String>, S2: Into<String> {
+    where S1: ToString, S2: ToString {
         let conn = Connection::open(&self.path)?;
-        let poll_uuid = poll_uuid.into();
-        let user_uuid = user_uuid.into();
+        let poll_uuid = poll_uuid.to_string();
+        let user_uuid = user_uuid.to_string();
         // check if the poll is open
         if !self.is_poll_open(poll_uuid.clone())? {
             return Err(anyhow!("Poll is closed"));
@@ -128,8 +128,8 @@ impl Polls {
         Polls::_get_poll(&conn, poll_uuid)
     }
 
-    fn _get_poll<S: Into<String>>(conn: &Connection, poll_uuid: S) -> Result<Poll> {
-        let poll_uuid = poll_uuid.into();
+    fn _get_poll<S: ToString>(conn: &Connection, poll_uuid: S) -> Result<Poll> {
+        let poll_uuid = poll_uuid.to_string();
         let (author, desc, is_open) = conn
             .prepare("SELECT author, desc, is_open FROM Poll WHERE uuid = ?1")
             .unwrap()
@@ -172,23 +172,23 @@ impl Polls {
         })
     }
 
-    pub fn get_poll<S: Into<String>>(&self, poll_uuid: S) -> Result<Poll> {
+    pub fn get_poll<S: ToString>(&self, poll_uuid: S) -> Result<Poll> {
         let conn = Connection::open(&self.path)?;
         Polls::_get_poll(&conn, poll_uuid)
     }
 
-    pub fn is_poll_open<S: Into<String>>(&self, poll_uuid: S) -> Result<bool> {
+    pub fn is_poll_open<S: ToString>(&self, poll_uuid: S) -> Result<bool> {
         let conn = Connection::open(&self.path)?;
         let res = conn
             .prepare("SELECT is_open FROM Poll WHERE uuid = ?1")
             .unwrap()
-            .query_row([poll_uuid.into()], |row| row.get::<usize, bool>(0))?;
+            .query_row([poll_uuid.to_string()], |row| row.get::<usize, bool>(0))?;
         Ok(res)
     }
 
-    pub fn close_poll<S: Into<String>>(&self, poll_uuid: S) -> Result<Poll> {
+    pub fn close_poll<S: ToString>(&self, poll_uuid: S) -> Result<Poll> {
         let conn = Connection::open(&self.path)?;
-        let poll_uuid = poll_uuid.into();
+        let poll_uuid = poll_uuid.to_string();
         conn.execute(
             "UPDATE Poll
             SET is_open = 0
