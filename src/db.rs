@@ -51,13 +51,14 @@ impl Polls {
         Ok(Polls { path })
     }
 
-    pub fn add_poll<S: Into<String>>(
+    pub fn add_poll<S1, S2, S3, S4>(
         &self,
-        poll_uuid: S,
-        author_uuid: S,
-        desc: S,
-        options: Vec<S>,
-    ) -> Result<Poll> {
+        poll_uuid: S1,
+        author_uuid: S2,
+        desc: S3,
+        options: Vec<S4>,
+    ) -> Result<Poll> 
+    where S1: Into<String>, S2: Into<String>, S3: Into<String>, S4: Into<String> {
         let conn = Connection::open(&self.path)?;
         let poll_uuid = poll_uuid.into();
         let author_uuid = author_uuid.into();
@@ -79,7 +80,8 @@ impl Polls {
         Polls::_get_poll(&conn, poll_uuid)
     }
 
-    pub fn add_options<S: Into<String>>(&self, poll_uuid: S, options: Vec<S>) -> Result<Poll> {
+    pub fn add_options<S1, S2>(&self, poll_uuid: S1, options: Vec<S2>) -> Result<Poll>
+    where S1: Into<String>, S2: Into<String> {
         let conn = Connection::open(&self.path)?;
         let poll_uuid = poll_uuid.into();
         let count = conn
@@ -97,13 +99,14 @@ impl Polls {
         Polls::_get_poll(&conn, poll_uuid)
     }
 
-    pub fn vote<S: Into<String>>(
+    pub fn vote<S1, S2>(
         &self,
-        poll_uuid: S,
+        poll_uuid: S1,
         option_number: usize,
-        user_uuid: S,
+        user_uuid: S2,
         value: usize,
-    ) -> Result<Poll> {
+    ) -> Result<Poll> 
+    where S1: Into<String>, S2: Into<String> {
         let conn = Connection::open(&self.path)?;
         let poll_uuid = poll_uuid.into();
         let user_uuid = user_uuid.into();
