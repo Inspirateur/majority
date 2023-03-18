@@ -3,11 +3,11 @@ mod majority_judgment;
 mod poll;
 mod votes;
 pub use db::Polls;
-pub use poll::Poll;
+pub use poll::{Poll, DefaultVote};
 
 #[cfg(test)]
 mod tests {
-    use crate::{Poll, *, poll::DefaultVote};
+    use crate::{Poll, *, DefaultVote};
     use anyhow::{Ok, Result};
     
     fn is_sync<T: Sync>() { }
