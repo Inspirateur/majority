@@ -7,7 +7,7 @@ pub use poll::Poll;
 
 #[cfg(test)]
 mod tests {
-    use crate::{Poll, *};
+    use crate::{Poll, *, poll::DefaultVote};
     use anyhow::{Ok, Result};
     
     fn is_sync<T: Sync>() { }
@@ -34,6 +34,7 @@ mod tests {
                 "1",
                 "Where shall we eat tomorrow ?",
                 vec!["Mama's Pizza", "Mega Sushi", "The Borgir"],
+                DefaultVote::IGNORE
             )
             .unwrap();
         // Add a fourth one
@@ -41,15 +42,20 @@ mod tests {
         // Vote values between 1-5 for this test
         let user_votes = vec![
             //   0  1  2  3  options
-            vec![3, 5, 3, 1], // user 1
+            vec![3, 5, 3],    // user 1 (forgot to vote for the last option)
             vec![4, 2, 4, 5], // user 2
             vec![3, 3, 3, 3], // user 3
-            vec![5, 3, 4, 2], // user 4
-            vec![5, 5, 5, 2], // user 5
+            vec![5, 3, 3, 2], // user 4
+            vec![5, 5, 5, 3], // user 5
             vec![2, 1, 2, 4], // user 6
         ];
         let poll = votes_on(&polls, "1", user_votes).unwrap();
         print!("{}", poll);
-        assert_eq!(poll.ranking, vec![1, 3, 2, 4])
+        let correct_ranking = if poll.default_vote == DefaultVote::IGNORE {
+            vec![1, 4, 3, 2]
+        } else {
+            vec![1, 3, 2, 4]
+        };
+        assert_eq!(poll.ranking, correct_ranking)
     }
 }

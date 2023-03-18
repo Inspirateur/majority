@@ -1,6 +1,6 @@
 use crate::{
     majority_judgment::{compute_ranking, fill_out_votes},
-    Poll,
+    Poll, poll::DefaultVote,
 };
 use anyhow::{anyhow, Result};
 use rusqlite::Connection;
@@ -19,6 +19,7 @@ impl Polls {
                 uuid TEXT PRIMARY KEY,
 				desc TEXT,
 				author TEXT,
+                default_mode INGEGER,
                 is_open INTEGER DEFAULT 1
             )",
             [],
@@ -57,6 +58,7 @@ impl Polls {
         author_uuid: S2,
         desc: S3,
         options: Vec<S4>,
+        default_vote: DefaultVote
     ) -> Result<Poll> 
     where S1: ToString, S2: ToString, S3: ToString, S4: ToString {
         let conn = Connection::open(&self.path)?;
@@ -65,9 +67,9 @@ impl Polls {
         let desc = desc.to_string();
         conn.execute(
             "INSERT 
-            INTO Poll (uuid, author, desc) 
-            VALUES (?1, ?2, ?3)",
-            [poll_uuid.clone(), author_uuid, desc],
+            INTO Poll (uuid, author, desc, default_mode) 
+            VALUES (?1, ?2, ?3, ?4)",
+            [poll_uuid.clone(), author_uuid, desc, (default_vote as u32).to_string()],
         )?;
         for (i, opt_desc) in options.into_iter().enumerate() {
             conn.execute(
@@ -130,16 +132,18 @@ impl Polls {
 
     fn _get_poll<S: ToString>(conn: &Connection, poll_uuid: S) -> Result<Poll> {
         let poll_uuid = poll_uuid.to_string();
-        let (author, desc, is_open) = conn
-            .prepare("SELECT author, desc, is_open FROM Poll WHERE uuid = ?1")
+        let (author, desc, default_vote_res, is_open) = conn
+            .prepare("SELECT author, desc, default_mode, is_open FROM Poll WHERE uuid = ?1")
             .unwrap()
             .query_row([poll_uuid.clone()], |row| {
                 Ok((
                     row.get::<usize, String>(0)?,
                     row.get::<usize, String>(1)?,
-                    row.get::<usize, bool>(2)?,
+                    DefaultVote::try_from(row.get::<usize, u32>(2)?),
+                    row.get::<usize, bool>(3)?,
                 ))
             })?;
+        let default_vote = default_vote_res?;
         let mut stmt = conn
             .prepare("SELECT desc FROM Option WHERE poll = ?1 ORDER BY number ASC")
             .unwrap();
@@ -161,13 +165,16 @@ impl Polls {
         for votes in options_votes.iter_mut() {
             votes.sort()
         }
-        fill_out_votes(&mut options_votes);
+        if default_vote == DefaultVote::REJECT {
+            fill_out_votes(&mut options_votes);
+        }
         Ok(Poll {
             desc,
             author,
             is_open,
             options,
             ranking: compute_ranking(&options_votes),
+            default_vote,
             votes: options_votes,
         })
     }
