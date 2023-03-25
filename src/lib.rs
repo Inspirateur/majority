@@ -4,6 +4,7 @@ mod poll;
 mod votes;
 pub use db::Polls;
 pub use poll::{Poll, DefaultVote};
+pub use votes::MJVotes;
 
 #[cfg(test)]
 mod tests {

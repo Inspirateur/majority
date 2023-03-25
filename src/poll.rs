@@ -1,5 +1,6 @@
 use std::fmt::Display;
 use anyhow::{Error, anyhow};
+use crate::MJVotes;
 
 #[derive(PartialEq)]
 pub enum DefaultVote {
@@ -43,14 +44,15 @@ impl Display for Poll {
                 .zip(&self.votes)
                 .zip(&self.ranking)
                 .map(|((opt_desc, votes), rank)| format!(
-                    "({}) {}\n{}\n",
-                    rank,
+                    "{}\n[{}] {} | median {}\n",
                     opt_desc,
+                    rank,
                     votes
-                        .into_iter()
+                        .iter()
                         .map(|val| val.to_string())
                         .collect::<Vec<String>>()
-                        .join(" ")
+                        .join(" "),
+                    votes.nth_median(0)
                 ))
                 .fold(String::new(), |a, b| a + &b + "\n")
         )
