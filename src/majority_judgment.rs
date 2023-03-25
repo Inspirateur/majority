@@ -11,6 +11,9 @@ pub(crate) fn fill_out_votes(options_votes: &mut Vec<Vec<usize>>) {
 }
 
 pub(crate) fn compute_ranking(votes: &Vec<Vec<usize>>) -> Vec<usize> {
+    if votes.len() == 0 {
+        return Vec::new();
+    }
     // Given a list of votes (for each option), compute the rank of each option, with ex aequos
     let mut sorted_votes: Vec<_> = votes.clone().into_iter().enumerate().collect();
     sorted_votes.sort_by(|(_i1, v1), (_i2, v2)| v2.vote_cmp(v1));
