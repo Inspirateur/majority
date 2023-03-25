@@ -46,10 +46,12 @@ mod tests {
             vec![4, 2, 4, 5], // user 2
             vec![3, 3, 3, 3], // user 3
             vec![5, 3, 3, 2], // user 4
-            vec![5, 5, 5, 3], // user 5
+            vec![1, 5, 5, 3], // user 5
             vec![2, 1, 2, 4], // user 6
         ];
-        let poll = votes_on(&polls, "1", user_votes).unwrap();
+        votes_on(&polls, "1", user_votes).unwrap();
+        // user 5 changed their mind and decided to attribute 5 to option 0 (Mama's Pizza)
+        let poll = polls.vote("1", 0, 5, 5).expect("Vote didn't work");
         print!("{}", poll);
         let correct_ranking = if poll.default_vote == DefaultVote::IGNORE {
             vec![1, 4, 3, 2]

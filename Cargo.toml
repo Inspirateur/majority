@@ -1,6 +1,6 @@
 [package]
 name = "majority"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 description = "A crate to manage majority judgment polls."
 license = "Unlicense"
