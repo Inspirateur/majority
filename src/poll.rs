@@ -44,7 +44,7 @@ impl Display for Poll {
                 .zip(&self.votes)
                 .zip(&self.ranking)
                 .map(|((opt_desc, votes), rank)| format!(
-                    "{}\n[{}] {} | median {}\n",
+                    "{}\n[{}] {}{}\n",
                     opt_desc,
                     rank,
                     votes
@@ -52,7 +52,11 @@ impl Display for Poll {
                         .map(|val| val.to_string())
                         .collect::<Vec<String>>()
                         .join(" "),
-                    votes.nth_median(0)
+                    if let Some(med) = votes.nth_median(0) { 
+                        format!(" | median {}", med)
+                    } else {
+                        String::new()
+                    }
                 ))
                 .fold(String::new(), |a, b| a + &b + "\n")
         )
