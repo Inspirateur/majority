@@ -24,7 +24,7 @@ impl TryFrom<u32> for DefaultVote {
 
 pub struct Poll {
     pub desc: String,
-    pub author: String,
+    pub author: u64,
     pub options: Vec<String>,
     pub votes: Vec<Vec<usize>>,
     pub ranking: Vec<usize>,

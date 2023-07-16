@@ -13,11 +13,11 @@ mod tests {
     
     fn is_sync<T: Sync>() { }
 
-    fn votes_on(polls: &Polls, poll_uuid: &str, user_votes: Vec<Vec<usize>>) -> Result<Poll> {
+    fn votes_on(polls: &Polls, poll_uuid: u64, user_votes: Vec<Vec<usize>>) -> Result<Poll> {
         for (user, votes) in user_votes.into_iter().enumerate() {
-            let user_uuid = (user + 1).to_string();
+            let user_uuid = user + 1;
             for (opt, vote) in votes.into_iter().enumerate() {
-                polls.vote(poll_uuid, opt, &user_uuid, vote)?;
+                polls.vote(poll_uuid, opt, user_uuid as u64, vote)?;
             }
         }
         Ok(polls.get_poll(poll_uuid)?)
@@ -31,15 +31,15 @@ mod tests {
         // Create a poll with 3 options
         polls
             .add_poll(
-                "1",
-                "1",
+                1u64,
+                1u64,
                 "Where shall we eat tomorrow ?",
                 vec!["Mama's Pizza", "Mega Sushi", "The Borgir"],
                 DefaultVote::IGNORE
             )
             .unwrap();
         // Add a fourth one
-        polls.add_options("1", vec!["Mec Don Hald"]).unwrap();
+        polls.add_options(1u64, vec!["Mec Don Hald"]).unwrap();
         // Vote values between 1-5 for this test
         let user_votes = vec![
             //   0  1  2  3  options
@@ -50,9 +50,9 @@ mod tests {
             vec![1, 5, 5, 3], // user 5
             vec![2, 1, 2, 4], // user 6
         ];
-        votes_on(&polls, "1", user_votes).unwrap();
+        votes_on(&polls, 1u64, user_votes).unwrap();
         // user 5 changed their mind and decided to attribute 5 to option 0 (Mama's Pizza)
-        let poll = polls.vote("1", 0, 5, 5).expect("Vote didn't work");
+        let poll = polls.vote(1u64, 0, 5u64, 5).expect("Vote didn't work");
         print!("{}", poll);
         let correct_ranking = if poll.default_vote == DefaultVote::IGNORE {
             vec![1, 4, 3, 2]
